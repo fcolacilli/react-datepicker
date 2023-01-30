@@ -43,6 +43,7 @@ import startOfYear from "date-fns/startOfYear";
 import endOfDay from "date-fns/endOfDay";
 import endOfWeek from "date-fns/endOfWeek";
 import endOfMonth from "date-fns/endOfMonth";
+import endOfYear from "date-fns/endOfYear";
 import dfIsEqual from "date-fns/isEqual";
 import dfIsSameDay from "date-fns/isSameDay";
 import dfIsSameMonth from "date-fns/isSameMonth";
@@ -58,10 +59,6 @@ import longFormatters from "date-fns/esm/_lib/format/longFormatters";
 
 export const DEFAULT_YEAR_ITEM_NUMBER = 12;
 
-// This RegExp catches symbols escaped by quotes, and also
-// sequences of symbols P, p, and the combinations like `PPPPPPPppppp`
-var longFormattingTokensRegExp = /P+p+|P+|p+|''|'(''|[^'])+('|$)|./g;
-
 // ** Date Constructors **
 
 export function newDate(value) {
@@ -73,57 +70,24 @@ export function newDate(value) {
   return isValid(d) ? d : null;
 }
 
-export function parseDate(value, dateFormat, locale, strictParsing, minDate) {
-  let parsedDate = null;
-  let localeObject =
+export function parseDate(value, dateFormat, locale, strictParsing, refDate) {
+  const localeObject =
     getLocaleObject(locale) || getLocaleObject(getDefaultLocale());
-  let strictParsingValueMatch = true;
-  if (Array.isArray(dateFormat)) {
-    dateFormat.forEach((df) => {
-      let tryParseDate = parse(value, df, new Date(), { locale: localeObject });
-      if (strictParsing) {
-        strictParsingValueMatch =
-          isValid(tryParseDate, minDate) &&
-          value === format(tryParseDate, df, { awareOfUnicodeTokens: true });
-      }
-      if (isValid(tryParseDate, minDate) && strictParsingValueMatch) {
-        parsedDate = tryParseDate;
-      }
-    });
-    return parsedDate;
-  }
 
-  parsedDate = parse(value, dateFormat, new Date(), { locale: localeObject });
+  const formats = Array.isArray(dateFormat) ? dateFormat : [dateFormat];
+  refDate = refDate || newDate();
 
-  if (strictParsing) {
-    strictParsingValueMatch =
-      isValid(parsedDate) &&
-      value === format(parsedDate, dateFormat, { awareOfUnicodeTokens: true });
-  } else if (!isValid(parsedDate)) {
-    dateFormat = dateFormat
-      .match(longFormattingTokensRegExp)
-      .map(function (substring) {
-        var firstCharacter = substring[0];
-        if (firstCharacter === "p" || firstCharacter === "P") {
-          var longFormatter = longFormatters[firstCharacter];
-          return localeObject
-            ? longFormatter(substring, localeObject.formatLong)
-            : firstCharacter;
-        }
-        return substring;
-      })
-      .join("");
-
-    if (value.length > 0) {
-      parsedDate = parse(value, dateFormat.slice(0, value.length), new Date());
-    }
-
-    if (!isValid(parsedDate)) {
-      parsedDate = new Date(value);
+  for (let i = 0, len = formats.length; i < len; i++) {
+    const format = formats[i];
+    const parsedDate = parse(value, format, refDate, { locale: localeObject });
+    if (
+      isValid(parsedDate /* , minDate */) &&
+      (!strictParsing || value === formatDate(parsedDate, format, locale))
+    ) {
+      return parsedDate;
     }
   }
-
-  return isValid(parsedDate) && strictParsingValueMatch ? parsedDate : null;
+  return null;
 }
 
 // ** Date "Reflection" **
@@ -132,7 +96,7 @@ export { isDate };
 
 export function isValid(date, minDate) {
   minDate = minDate ? minDate : new Date("1/1/1000");
-  return isValidDate(date) && isAfter(date, minDate);
+  return isValidDate(date) && !isBefore(date, minDate);
 }
 
 // ** Date Formatting **
@@ -141,21 +105,15 @@ export function formatDate(date, formatStr, locale) {
   if (locale === "en") {
     return format(date, formatStr, { awareOfUnicodeTokens: true });
   }
-  let localeObj = getLocaleObject(locale);
+  const localeObj =
+    getLocaleObject(locale) || getLocaleObject(getDefaultLocale()) || null;
   if (locale && !localeObj) {
     console.warn(
       `A locale object was not found for the provided string ["${locale}"].`
     );
   }
-  if (
-    !localeObj &&
-    !!getDefaultLocale() &&
-    !!getLocaleObject(getDefaultLocale())
-  ) {
-    localeObj = getLocaleObject(getDefaultLocale());
-  }
   return format(date, formatStr, {
-    locale: localeObj ? localeObj : null,
+    locale: localeObj,
     awareOfUnicodeTokens: true,
   });
 }
@@ -343,7 +301,7 @@ export function getDaysDiff(date1, date2) {
 // ** Date Localization **
 
 export function registerLocale(localeName, localeData) {
-  const scope = typeof window !== "undefined" ? window : global;
+  const scope = typeof window !== "undefined" ? window : globalThis;
 
   if (!scope.__localeData__) {
     scope.__localeData__ = {};
@@ -352,13 +310,13 @@ export function registerLocale(localeName, localeData) {
 }
 
 export function setDefaultLocale(localeName) {
-  const scope = typeof window !== "undefined" ? window : global;
+  const scope = typeof window !== "undefined" ? window : globalThis;
 
   scope.__localeId__ = localeName;
 }
 
 export function getDefaultLocale() {
-  const scope = typeof window !== "undefined" ? window : global;
+  const scope = typeof window !== "undefined" ? window : globalThis;
 
   return scope.__localeId__;
 }
@@ -366,7 +324,7 @@ export function getDefaultLocale() {
 export function getLocaleObject(localeSpec) {
   if (typeof localeSpec === "string") {
     // Treat it as a locale name registered by registerLocale
-    const scope = typeof window !== "undefined" ? window : global;
+    const scope = typeof window !== "undefined" ? window : globalThis;
     return scope.__localeData__ ? scope.__localeData__[localeSpec] : null;
   } else {
     // Treat it as a raw date-fns locale object
@@ -375,7 +333,9 @@ export function getLocaleObject(localeSpec) {
 }
 
 export function getFormattedWeekdayInLocale(date, formatFunc, locale) {
-  return formatFunc(formatDate(date, "EEEE", locale));
+  return typeof formatFunc === "function"
+    ? formatFunc(date, locale)
+    : formatDate(date, "EEEE", locale);
 }
 
 export function getWeekdayMinInLocale(date, locale) {
@@ -402,20 +362,44 @@ export function getQuarterShortInLocale(quarter, locale) {
 
 export function isDayDisabled(
   day,
-  { minDate, maxDate, excludeDates, includeDates, filterDate } = {}
+  {
+    minDate,
+    maxDate,
+    excludeDates,
+    excludeDateIntervals,
+    includeDates,
+    includeDateIntervals,
+    filterDate,
+  } = {}
 ) {
   return (
     isOutOfBounds(day, { minDate, maxDate }) ||
     (excludeDates &&
       excludeDates.some((excludeDate) => isSameDay(day, excludeDate))) ||
+    (excludeDateIntervals &&
+      excludeDateIntervals.some(({ start, end }) =>
+        isWithinInterval(day, { start, end })
+      )) ||
     (includeDates &&
       !includeDates.some((includeDate) => isSameDay(day, includeDate))) ||
+    (includeDateIntervals &&
+      !includeDateIntervals.some(({ start, end }) =>
+        isWithinInterval(day, { start, end })
+      )) ||
     (filterDate && !filterDate(newDate(day))) ||
     false
   );
 }
 
-export function isDayExcluded(day, { excludeDates } = {}) {
+export function isDayExcluded(
+  day,
+  { excludeDates, excludeDateIntervals } = {}
+) {
+  if (excludeDateIntervals && excludeDateIntervals.length > 0) {
+    return excludeDateIntervals.some(({ start, end }) =>
+      isWithinInterval(day, { start, end })
+    );
+  }
   return (
     (excludeDates &&
       excludeDates.some((excludeDate) => isSameDay(day, excludeDate))) ||
@@ -428,7 +412,10 @@ export function isMonthDisabled(
   { minDate, maxDate, excludeDates, includeDates, filterDate } = {}
 ) {
   return (
-    isOutOfBounds(month, { minDate, maxDate }) ||
+    isOutOfBounds(month, {
+      minDate: startOfMonth(minDate),
+      maxDate: endOfMonth(maxDate),
+    }) ||
     (excludeDates &&
       excludeDates.some((excludeDate) => isSameMonth(month, excludeDate))) ||
     (includeDates &&
@@ -474,9 +461,23 @@ export function isQuarterDisabled(
   );
 }
 
-export function isYearDisabled(year, { minDate, maxDate } = {}) {
+export function isYearDisabled(
+  year,
+  { minDate, maxDate, excludeDates, includeDates, filterDate } = {}
+) {
   const date = new Date(year, 0, 1);
-  return isOutOfBounds(date, { minDate, maxDate }) || false;
+  return (
+    isOutOfBounds(date, {
+      minDate: startOfYear(minDate),
+      maxDate: endOfYear(maxDate),
+    }) ||
+    (excludeDates &&
+      excludeDates.some((excludeDate) => isSameYear(date, excludeDate))) ||
+    (includeDates &&
+      !includeDates.some((includeDate) => isSameYear(date, includeDate))) ||
+    (filterDate && !filterDate(newDate(date))) ||
+    false
+  );
 }
 
 export function isQuarterInRange(startDate, endDate, q, day) {

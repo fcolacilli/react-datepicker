@@ -162,10 +162,15 @@ describe("Calendar", function () {
   });
 
   it("should correctly format weekday using formatWeekDay prop", function () {
-    const calendar = getCalendar({ formatWeekDay: (day) => day[0] });
+    const mockFormattedWeekDay = "mockFormattedWeekDay";
+    const formatWeekDay = sinon.fake.returns(mockFormattedWeekDay);
+    const calendar = getCalendar({ formatWeekDay });
+    sinon.assert.alwaysCalledWith(formatWeekDay, sinon.match.date);
     calendar
       .find(".react-datepicker__day-name")
-      .forEach((dayName) => expect(dayName.text()).to.have.length(1));
+      .forEach((dayName) =>
+        expect(dayName.text()).to.equals(mockFormattedWeekDay)
+      );
   });
 
   it("should contain the correct class when using the weekDayClassName prop", () => {
@@ -1705,6 +1710,35 @@ describe("Calendar", function () {
         which: 9,
       });
       expect(onKeyDownSpy.calledOnce).to.be.true;
+    });
+  });
+
+  describe("renderChildren", () => {
+    const renderCalendar = (props) =>
+      mount(
+        <Calendar
+          dateFormat={dateFormat}
+          onSelect={() => {}}
+          onClickOutside={() => {}}
+          hideCalendar={() => {}}
+          dropdownMode="scroll"
+          {...props}
+        />
+      );
+    const childrenContainerSelector = ".react-datepicker__children-container";
+
+    it("should render children components", function () {
+      const calendar = renderCalendar({
+        children: <div>This is a child component for test.</div>,
+      });
+      const childrenContainer = calendar.find(childrenContainerSelector);
+      expect(childrenContainer).to.have.length(1);
+    });
+
+    it("should not render children components", function () {
+      const calendar = renderCalendar();
+      const childrenContainer = calendar.find(childrenContainerSelector);
+      expect(childrenContainer).to.have.length(0);
     });
   });
 });

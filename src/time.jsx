@@ -62,12 +62,14 @@ export default class Time extends React.Component {
 
   componentDidMount() {
     // code to ensure selected time will always be in focus within time window when it first appears
-    this.list.scrollTop = Time.calcCenterPosition(
-      this.props.monthRef
-        ? this.props.monthRef.clientHeight - this.header.clientHeight
-        : this.list.clientHeight,
-      this.centerLi
-    );
+    this.list.scrollTop =
+      this.centerLi &&
+      Time.calcCenterPosition(
+        this.props.monthRef
+          ? this.props.monthRef.clientHeight - this.header.clientHeight
+          : this.list.clientHeight,
+        this.centerLi
+      );
     if (this.props.monthRef && this.header) {
       this.setState({
         height: this.props.monthRef.clientHeight - this.header.clientHeight,
@@ -89,6 +91,11 @@ export default class Time extends React.Component {
     this.props.onChange(time);
   };
 
+  isSelectedTime = (time, currH, currM) =>
+    this.props.selected &&
+    currH === getHours(time) &&
+    currM === getMinutes(time);
+
   liClasses = (time, currH, currM) => {
     let classes = [
       "react-datepicker__time-list-item",
@@ -97,13 +104,10 @@ export default class Time extends React.Component {
         : undefined,
     ];
 
-    if (
-      this.props.selected &&
-      currH === getHours(time) &&
-      currM === getMinutes(time)
-    ) {
+    if (this.isSelectedTime(time, currH, currM)) {
       classes.push("react-datepicker__time-list-item--selected");
     }
+
     if (
       ((this.props.minTime || this.props.maxTime) &&
         isTimeInDisabledRange(time, this.props)) ||
@@ -185,6 +189,9 @@ export default class Time extends React.Component {
           this.handleOnKeyDown(ev, time);
         }}
         tabIndex="0"
+        aria-selected={
+          this.isSelectedTime(time, currH, currM) ? "true" : undefined
+        }
       >
         {formatDate(time, format, this.props.locale)}
       </li>

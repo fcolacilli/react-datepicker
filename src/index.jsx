@@ -4,6 +4,7 @@ import Calendar from "./calendar";
 import Portal from "./portal";
 import PopperComponent, { popperPlacementPositions } from "./popper_component";
 import classnames from "classnames";
+import set from "date-fns/set";
 import startOfDay from "date-fns/startOfDay";
 import endOfDay from "date-fns/endOfDay";
 import {
@@ -38,7 +39,11 @@ import {
   setDefaultLocale,
   getDefaultLocale,
   DEFAULT_YEAR_ITEM_NUMBER,
+  isSameDay,
+  isMonthDisabled,
+  isYearDisabled,
 } from "./date_utils";
+import TabLoop from "./tab_loop";
 import onClickOutside from "react-onclickoutside";
 
 export { default as CalendarContainer } from "./calendar_container";
@@ -89,6 +94,7 @@ export default class DatePicker extends React.Component {
       monthsShown: 1,
       readOnly: false,
       withPortal: false,
+      selectsDisabledDaysInRange: false,
       shouldCloseOnSelect: true,
       showTimeSelect: false,
       showTimeInput: false,
@@ -157,12 +163,20 @@ export default class DatePicker extends React.Component {
     dropdownMode: PropTypes.oneOf(["scroll", "select"]).isRequired,
     endDate: PropTypes.instanceOf(Date),
     excludeDates: PropTypes.array,
+    excludeDateIntervals: PropTypes.arrayOf(
+      PropTypes.shape({
+        start: PropTypes.instanceOf(Date),
+        end: PropTypes.instanceOf(Date),
+      })
+    ),
     filterDate: PropTypes.func,
     fixedHeight: PropTypes.bool,
+    form: PropTypes.string,
     formatWeekNumber: PropTypes.func,
     highlightDates: PropTypes.array,
     id: PropTypes.string,
     includeDates: PropTypes.array,
+    includeDateIntervals: PropTypes.array,
     includeTimes: PropTypes.array,
     injectTimes: PropTypes.array,
     inline: PropTypes.bool,
@@ -207,6 +221,7 @@ export default class DatePicker extends React.Component {
     selectsEnd: PropTypes.bool,
     selectsStart: PropTypes.bool,
     selectsRange: PropTypes.bool,
+    selectsDisabledDaysInRange: PropTypes.bool,
     showMonthDropdown: PropTypes.bool,
     showPreviousMonths: PropTypes.bool,
     showMonthYearDropdown: PropTypes.bool,
@@ -227,6 +242,7 @@ export default class DatePicker extends React.Component {
     weekLabel: PropTypes.string,
     withPortal: PropTypes.bool,
     portalId: PropTypes.string,
+    portalHost: PropTypes.instanceOf(ShadowRoot),
     yearItemNumber: PropTypes.number,
     yearDropdownItemNumber: PropTypes.number,
     shouldCloseOnSelect: PropTypes.bool,
@@ -274,6 +290,7 @@ export default class DatePicker extends React.Component {
     enableTabLoop: PropTypes.bool,
     customTimeInput: PropTypes.element,
     weekAriaLabelPrefix: PropTypes.string,
+    monthAriaLabelPrefix: PropTypes.string,
   };
 
   constructor(props) {
@@ -472,13 +489,25 @@ export default class DatePicker extends React.Component {
       inputValue: event.target.value,
       lastPreSelectChange: PRESELECT_CHANGE_VIA_INPUT,
     });
-    const date = parseDate(
+    let date = parseDate(
       event.target.value,
       this.props.dateFormat,
       this.props.locale,
       this.props.strictParsing,
+      this.props.selected,
       this.props.minDate
     );
+    // Use date from `selected` prop when manipulating only time for input value
+    if (
+      this.props.showTimeSelectOnly &&
+      !isSameDay(date, this.props.selected)
+    ) {
+      date = set(this.props.selected, {
+        hours: getHours(date),
+        minutes: getMinutes(date),
+        seconds: getSeconds(date),
+      });
+    }
     if (date || !event.target.value) {
       this.setSelected(date, event, true);
     }
@@ -514,9 +543,23 @@ export default class DatePicker extends React.Component {
   setSelected = (date, event, keepInput, monthSelectedIn) => {
     let changedDate = date;
 
-    if (changedDate !== null && isDayDisabled(changedDate, this.props)) {
-      return;
+    if (this.props.showYearPicker) {
+      if (
+        changedDate !== null &&
+        isYearDisabled(getYear(changedDate), this.props)
+      ) {
+        return;
+      }
+    } else if (this.props.showMonthYearPicker) {
+      if (changedDate !== null && isMonthDisabled(changedDate, this.props)) {
+        return;
+      }
+    } else {
+      if (changedDate !== null && isDayDisabled(changedDate, this.props)) {
+        return;
+      }
     }
+
     const { onChange, selectsRange, startDate, endDate } = this.props;
 
     if (
@@ -685,13 +728,31 @@ export default class DatePicker extends React.Component {
         }
       } else if (eventKey === "Escape") {
         event.preventDefault();
-
         this.setOpen(false);
       }
 
       if (!this.inputOk()) {
         this.props.onInputError({ code: 1, msg: INPUT_ERR_1 });
       }
+    }
+  };
+
+  onPortalKeyDown = (event) => {
+    const eventKey = event.key;
+    if (eventKey === "Escape") {
+      event.preventDefault();
+      this.setState(
+        {
+          preventFocus: true,
+        },
+        () => {
+          this.setOpen(false);
+          setTimeout(() => {
+            this.setFocus();
+            this.setState({ preventFocus: false });
+          });
+        }
+      );
     }
   };
 
@@ -847,6 +908,7 @@ export default class DatePicker extends React.Component {
         chooseDayAriaLabelPrefix={this.props.chooseDayAriaLabelPrefix}
         disabledDayAriaLabelPrefix={this.props.disabledDayAriaLabelPrefix}
         weekAriaLabelPrefix={this.props.weekAriaLabelPrefix}
+        monthAriaLabelPrefix={this.props.monthAriaLabelPrefix}
         adjustDateOnChange={this.props.adjustDateOnChange}
         setOpen={this.setOpen}
         shouldCloseOnSelect={this.props.shouldCloseOnSelect}
@@ -867,11 +929,13 @@ export default class DatePicker extends React.Component {
         startDate={this.props.startDate}
         endDate={this.props.endDate}
         excludeDates={this.props.excludeDates}
+        excludeDateIntervals={this.props.excludeDateIntervals}
         filterDate={this.props.filterDate}
         onClickOutside={this.handleCalendarClickOutside}
         formatWeekNumber={this.props.formatWeekNumber}
         highlightDates={this.state.highlightDates}
         includeDates={this.props.includeDates}
+        includeDateIntervals={this.props.includeDateIntervals}
         includeTimes={this.props.includeTimes}
         injectTimes={this.props.injectTimes}
         inline={this.props.inline}
@@ -930,6 +994,7 @@ export default class DatePicker extends React.Component {
         renderDayContents={this.props.renderDayContents}
         onDayMouseEnter={this.props.onDayMouseEnter}
         onMonthMouseLeave={this.props.onMonthMouseLeave}
+        selectsDisabledDaysInRange={this.props.selectsDisabledDaysInRange}
         showTimeInput={this.props.showTimeInput}
         showMonthYearPicker={this.props.showMonthYearPicker}
         showFullMonthYearPicker={this.props.showFullMonthYearPicker}
@@ -982,6 +1047,7 @@ export default class DatePicker extends React.Component {
       onKeyDown: this.onInputKeyDown,
       id: this.props.id,
       name: this.props.name,
+      form: this.props.form,
       autoFocus: this.props.autoFocus,
       placeholder: this.props.placeholderText,
       disabled: this.props.disabled,
@@ -1043,12 +1109,25 @@ export default class DatePicker extends React.Component {
 
     if (this.props.withPortal) {
       let portalContainer = this.state.open ? (
-        <div className="react-datepicker__portal">{calendar}</div>
+        <TabLoop enableTabLoop={this.props.enableTabLoop}>
+          <div
+            className="react-datepicker__portal"
+            tabIndex={-1}
+            onKeyDown={this.onPortalKeyDown}
+          >
+            {calendar}
+          </div>
+        </TabLoop>
       ) : null;
 
       if (this.state.open && this.props.portalId) {
         portalContainer = (
-          <Portal portalId={this.props.portalId}>{portalContainer}</Portal>
+          <Portal
+            portalId={this.props.portalId}
+            portalHost={this.props.portalHost}
+          >
+            {portalContainer}
+          </Portal>
         );
       }
 
@@ -1066,6 +1145,7 @@ export default class DatePicker extends React.Component {
         wrapperClassName={this.props.wrapperClassName}
         hidePopper={!this.isCalendarOpen()}
         portalId={this.props.portalId}
+        portalHost={this.props.portalHost}
         popperModifiers={this.props.popperModifiers}
         targetComponent={this.renderInputContainer()}
         popperContainer={this.props.popperContainer}

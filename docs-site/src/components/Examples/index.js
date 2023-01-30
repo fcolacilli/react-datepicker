@@ -28,9 +28,13 @@ import Locale from "../../examples/locale";
 import LocaleWithTime from "../../examples/localeWithTime";
 import LocaleWithoutGlobalVariable from "../../examples/localeWithoutGlobalVariable";
 import ExcludeDates from "../../examples/excludeDates";
+import ExcludeDateIntervals from "../../examples/excludeDateIntervals";
+import ExcludeDatesMonthPicker from "../../examples/excludeDatesMonthPicker";
 import HighlightDates from "../../examples/highlightDates";
 import HighlightDatesRanges from "../../examples/highlightDatesRanges";
 import IncludeDates from "../../examples/includeDates";
+import IncludeDateIntervals from "../../examples/includeDateIntervals";
+import IncludeDatesMonthPicker from "../../examples/includeDatesMonthPicker";
 import FilterDates from "../../examples/filterDates";
 import DateRange from "../../examples/dateRange";
 import DateRangeInputWithClearButton from "../../examples/dateRangeInputWithClearButton";
@@ -83,7 +87,9 @@ import CustomTimeInput from "../../examples/customTimeInput";
 import CloseOnScroll from "../../examples/closeOnScroll";
 import CloseOnScrollCallback from "../../examples/closeOnScrollCallback";
 import SelectsRange from "../../examples/selectsRange";
+import selectsRangeWithDisabledDates from "../../examples/selectsRangeWithDisabledDates";
 import CalendarStartDay from "../../examples/calendarStartDay";
+import ExternalForm from "../../examples/externalForm";
 
 import "./style.scss";
 import "react-datepicker/dist/react-datepicker.css";
@@ -188,6 +194,10 @@ export default class exampleComponents extends React.Component {
       component: SelectsRange,
     },
     {
+      title: "Date range for one datepicker with disabled dates highlighted",
+      component: selectsRangeWithDisabledDates,
+    },
+    {
       title: "Date Range with disabled navigation shown",
       component: DateRangeWithShowDisabledNavigation,
     },
@@ -220,6 +230,14 @@ export default class exampleComponents extends React.Component {
       component: ExcludeDates,
     },
     {
+      title: "Exclude date intervals",
+      component: ExcludeDateIntervals,
+    },
+    {
+      title: "Exclude Months in Month Picker",
+      component: ExcludeDatesMonthPicker,
+    },
+    {
       title: "Exclude Times",
       component: ExcludeTimes,
     },
@@ -250,6 +268,14 @@ export default class exampleComponents extends React.Component {
     {
       title: "Include dates",
       component: IncludeDates,
+    },
+    {
+      title: "Include date intervals",
+      component: IncludeDateIntervals,
+    },
+    {
+      title: "Include Months in Month Picker",
+      component: IncludeDatesMonthPicker,
     },
     {
       title: "Include Times",
@@ -430,6 +456,10 @@ export default class exampleComponents extends React.Component {
     {
       title: "Calendar Start day",
       component: CalendarStartDay,
+    },
+    {
+      title: "External Form",
+      component: ExternalForm,
     },
   ];
 

@@ -15,6 +15,9 @@ export default class Year extends React.Component {
     inline: PropTypes.bool,
     maxDate: PropTypes.instanceOf(Date),
     minDate: PropTypes.instanceOf(Date),
+    excludeDates: PropTypes.array,
+    includeDates: PropTypes.array,
+    filterDate: PropTypes.func,
     yearItemNumber: PropTypes.number,
   };
 
@@ -60,6 +63,8 @@ export default class Year extends React.Component {
 
   isSameDay = (y, other) => utils.isSameDay(y, other);
 
+  isCurrentYear = (y) => y === getYear(newDate());
+
   isKeyboardSelected = (y) => {
     const date = utils.getStartOfYear(utils.setYear(this.props.date, y));
     return (
@@ -100,14 +105,22 @@ export default class Year extends React.Component {
   };
 
   getYearClassNames = (y) => {
-    const { minDate, maxDate, selected } = this.props;
+    const {
+      minDate,
+      maxDate,
+      selected,
+      excludeDates,
+      includeDates,
+      filterDate,
+    } = this.props;
     return classnames("react-datepicker__year-text", {
       "react-datepicker__year-text--selected": y === getYear(selected),
       "react-datepicker__year-text--disabled":
-        (minDate || maxDate) && utils.isYearDisabled(y, this.props),
+        (minDate || maxDate || excludeDates || includeDates || filterDate) &&
+        utils.isYearDisabled(y, this.props),
       "react-datepicker__year-text--keyboard-selected":
         this.isKeyboardSelected(y),
-      "react-datepicker__year-text--today": y === getYear(newDate()),
+      "react-datepicker__year-text--today": this.isCurrentYear(y),
     });
   };
 
@@ -139,6 +152,7 @@ export default class Year extends React.Component {
           tabIndex={this.getYearTabIndex(y)}
           className={this.getYearClassNames(y)}
           key={y}
+          aria-current={this.isCurrentYear(y) ? "date" : undefined}
         >
           {y}
         </div>

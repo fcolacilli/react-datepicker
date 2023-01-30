@@ -92,11 +92,23 @@ export default class Calendar extends React.Component {
     dropdownMode: PropTypes.oneOf(["scroll", "select"]),
     endDate: PropTypes.instanceOf(Date),
     excludeDates: PropTypes.array,
+    excludeDateIntervals: PropTypes.arrayOf(
+      PropTypes.shape({
+        start: PropTypes.instanceOf(Date),
+        end: PropTypes.instanceOf(Date),
+      })
+    ),
     filterDate: PropTypes.func,
     fixedHeight: PropTypes.bool,
     formatWeekNumber: PropTypes.func,
     highlightDates: PropTypes.instanceOf(Map),
     includeDates: PropTypes.array,
+    includeDateIntervals: PropTypes.arrayOf(
+      PropTypes.shape({
+        start: PropTypes.instanceOf(Date),
+        end: PropTypes.instanceOf(Date),
+      })
+    ),
     includeTimes: PropTypes.array,
     injectTimes: PropTypes.array,
     inline: PropTypes.bool,
@@ -147,6 +159,7 @@ export default class Calendar extends React.Component {
     selectsEnd: PropTypes.bool,
     selectsStart: PropTypes.bool,
     selectsRange: PropTypes.bool,
+    selectsDisabledDaysInRange: PropTypes.bool,
     showMonthDropdown: PropTypes.bool,
     showPreviousMonths: PropTypes.bool,
     showMonthYearDropdown: PropTypes.bool,
@@ -184,6 +197,7 @@ export default class Calendar extends React.Component {
     isInputFocused: PropTypes.bool,
     customTimeInput: PropTypes.element,
     weekAriaLabelPrefix: PropTypes.string,
+    monthAriaLabelPrefix: PropTypes.string,
     setPreSelection: PropTypes.func,
   };
 
@@ -677,6 +691,11 @@ export default class Calendar extends React.Component {
     );
   };
 
+  handleTodayButtonClick = (e) => {
+    this.props.onSelect(getStartOfToday(), e);
+    this.props.setPreSelection && this.props.setPreSelection(getStartOfToday());
+  };
+
   renderTodayButton = () => {
     if (!this.props.todayButton || this.props.showTimeSelectOnly) {
       return;
@@ -684,7 +703,7 @@ export default class Calendar extends React.Component {
     return (
       <div
         className="react-datepicker__today-button"
-        onClick={(e) => this.props.onSelect(getStartOfToday(), e)}
+        onClick={(e) => this.handleTodayButtonClick(e)}
       >
         {this.props.todayButton}
       </div>
@@ -831,6 +850,7 @@ export default class Calendar extends React.Component {
             chooseDayAriaLabelPrefix={this.props.chooseDayAriaLabelPrefix}
             disabledDayAriaLabelPrefix={this.props.disabledDayAriaLabelPrefix}
             weekAriaLabelPrefix={this.props.weekAriaLabelPrefix}
+            ariaLabelPrefix={this.props.monthAriaLabelPrefix}
             onChange={this.changeMonthYear}
             day={monthDate}
             dayClassName={this.props.dayClassName}
@@ -847,9 +867,11 @@ export default class Calendar extends React.Component {
             minDate={this.props.minDate}
             maxDate={this.props.maxDate}
             excludeDates={this.props.excludeDates}
+            excludeDateIntervals={this.props.excludeDateIntervals}
             highlightDates={this.props.highlightDates}
             selectingDate={this.state.selectingDate}
             includeDates={this.props.includeDates}
+            includeDateIntervals={this.props.includeDateIntervals}
             inline={this.props.inline}
             shouldFocusDayInline={this.props.shouldFocusDayInline}
             fixedHeight={this.props.fixedHeight}
@@ -860,6 +882,7 @@ export default class Calendar extends React.Component {
             selectsStart={this.props.selectsStart}
             selectsEnd={this.props.selectsEnd}
             selectsRange={this.props.selectsRange}
+            selectsDisabledDaysInRange={this.props.selectsDisabledDaysInRange}
             showWeekNumbers={this.props.showWeekNumbers}
             startDate={this.props.startDate}
             endDate={this.props.endDate}
@@ -960,6 +983,16 @@ export default class Calendar extends React.Component {
     }
   };
 
+  renderChildren = () => {
+    if (this.props.children) {
+      return (
+        <div className="react-datepicker__children-container">
+          {this.props.children}
+        </div>
+      );
+    }
+  };
+
   render() {
     const Container = this.props.container || CalendarContainer;
     return (
@@ -978,7 +1011,7 @@ export default class Calendar extends React.Component {
           {this.renderTodayButton()}
           {this.renderTimeSection()}
           {this.renderInputTimeSection()}
-          {this.props.children}
+          {this.renderChildren()}
         </Container>
       </div>
     );

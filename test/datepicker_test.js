@@ -112,6 +112,21 @@ describe("DatePicker", () => {
     expect(datePicker.calendar).to.exist;
   });
 
+  it("should render the calendar in the portalHost prop when provided", () => {
+    var root = document.createElement("div");
+    var shadow = root.attachShadow({ mode: "closed" });
+    var appHost = document.createElement("div");
+    shadow.appendChild(appHost);
+    var datePicker = ReactDOM.render(
+      <DatePicker portalId="test-portal" portalHost={shadow} />,
+      appHost
+    );
+    var dateInput = datePicker.input;
+    TestUtils.Simulate.click(ReactDOM.findDOMNode(dateInput));
+    expect(datePicker.calendar).to.exist;
+    expect(shadow.getElementById("test-portal")).to.exist;
+  });
+
   it("should not set open state when it is disabled and gets clicked", function () {
     var datePicker = TestUtils.renderIntoDocument(<DatePicker disabled />);
     var dateInput = datePicker.input;
@@ -304,6 +319,32 @@ describe("DatePicker", () => {
     ).to.equal(utils.formatDate(data.copyM, data.testFormat));
   });
 
+  it("should update the preSelection state when Today button is clicked after selecting a different day for inline mode", () => {
+    var datePicker = TestUtils.renderIntoDocument(
+      <DatePicker
+        todayButton="Today"
+        selected={utils.newDate()}
+        inline
+        onChange={(d) => {
+          var date = d;
+        }}
+      />
+    );
+
+    var today = getSelectedDayNode(datePicker);
+    var anyOtherDay = today.nextElementSibling || today.previousElementSibling;
+    TestUtils.Simulate.click(anyOtherDay); // will update the preSelection to next or previous day
+
+    var todayBtn = datePicker.calendar.componentNode.querySelector(
+      ".react-datepicker__today-button"
+    );
+    TestUtils.Simulate.click(todayBtn); // will update the preSelection
+
+    expect(
+      utils.formatDate(datePicker.state.preSelection, "yyyy-MM-dd")
+    ).to.equal(utils.formatDate(utils.newDate(), "yyyy-MM-dd"));
+  });
+
   it("should hide the calendar when pressing enter in the date input", () => {
     var datePicker = TestUtils.renderIntoDocument(<DatePicker />);
     var dateInput = datePicker.input;
@@ -466,9 +507,9 @@ describe("DatePicker", () => {
       />
     );
 
-    var input = ReactDOM.findDOMNode(datePicker.input);
-    input.value = utils.newDate("2014-01-02");
-    TestUtils.Simulate.change(input);
+    TestUtils.Simulate.change(datePicker.input, {
+      target: { value: "01/02/2014" },
+    });
 
     expect(utils.getHours(date)).to.equal(10);
     expect(utils.getMinutes(date)).to.equal(11);
@@ -540,6 +581,33 @@ describe("DatePicker", () => {
       );
     }).to.not.throw();
     expect(datePicker.calendar).to.exist;
+  });
+
+  it("should render Calendar in portal when withPortal is set and should close on Escape key when focus is on header", () => {
+    var datePicker = TestUtils.renderIntoDocument(
+      <DatePicker withPortal portalId="portal-id-dom-test" />
+    );
+    var dateInput = datePicker.input;
+    TestUtils.Simulate.focus(ReactDOM.findDOMNode(dateInput));
+
+    expect(function () {
+      TestUtils.findRenderedDOMComponentWithClass(
+        datePicker,
+        "react-datepicker__portal"
+      );
+    }).to.not.throw();
+    expect(datePicker.calendar).to.exist;
+
+    var header = TestUtils.scryRenderedDOMComponentsWithClass(
+      datePicker,
+      "react-datepicker__current-month"
+    )[0];
+
+    TestUtils.Simulate.click(ReactDOM.findDOMNode(header));
+
+    TestUtils.Simulate.keyDown(ReactDOM.findDOMNode(header), getKey("Escape"));
+
+    expect(datePicker.calendar).to.not.exist;
   });
 
   it("should not render Calendar when withPortal is set and no focus is given to input", () => {
@@ -812,7 +880,7 @@ describe("DatePicker", () => {
       datePicker = TestUtils.renderIntoDocument(
         <DatePicker
           selected={new Date("1993-07-02")}
-          minDate={new Date("1800/01/01")}
+          minDate={new Date("1800-01-01")}
           open
         />
       );
@@ -821,11 +889,11 @@ describe("DatePicker", () => {
     it("should auto update calendar when the updated date text is after props.minDate", () => {
       TestUtils.Simulate.change(datePicker.input, {
         target: {
-          value: "1801/01/01",
+          value: "01/01/1801",
         },
       });
 
-      expect(datePicker.input.value).to.equal("1801/01/01");
+      expect(datePicker.input.value).to.equal("01/01/1801");
       expect(
         datePicker.calendar.componentNode.querySelector(
           ".react-datepicker__current-month"
@@ -897,7 +965,7 @@ describe("DatePicker", () => {
     it("should update the selected date on manual input", () => {
       var data = getOnInputKeyDownStuff();
       TestUtils.Simulate.change(data.nodeInput, {
-        target: { value: "02/02/2017" },
+        target: { value: "2017-02-02" },
       });
       TestUtils.Simulate.keyDown(data.nodeInput, getKey("Enter"));
       data.copyM = utils.newDate("2017-02-02");
@@ -912,6 +980,46 @@ describe("DatePicker", () => {
       TestUtils.Simulate.keyDown(data.nodeInput, getKey("ArrowLeft"));
       TestUtils.Simulate.keyDown(data.nodeInput, getKey("Enter"));
       expect(data.callback.calledOnce).to.be.false;
+    });
+    describe("with excludeDateIntervals", () => {
+      it("should not select the start date of the interval", () => {
+        var data = getOnInputKeyDownStuff({
+          excludeDateIntervals: [
+            {
+              start: utils.subDays(utils.newDate(), 1),
+              end: utils.addDays(utils.newDate(), 1),
+            },
+          ],
+        });
+        TestUtils.Simulate.keyDown(data.nodeInput, getKey("ArrowLeft"));
+        TestUtils.Simulate.keyDown(data.nodeInput, getKey("Enter"));
+        expect(data.callback.calledOnce).to.be.false;
+      });
+      it("should not select a dates within the interval", () => {
+        var data = getOnInputKeyDownStuff({
+          excludeDateIntervals: [
+            {
+              start: utils.subDays(utils.newDate(), 1),
+              end: utils.addDays(utils.newDate(), 1),
+            },
+          ],
+        });
+        TestUtils.Simulate.keyDown(data.nodeInput, getKey("Enter"));
+        expect(data.callback.calledOnce).to.be.false;
+      });
+      it("should not select the end date of the interval", () => {
+        var data = getOnInputKeyDownStuff({
+          excludeDateIntervals: [
+            {
+              start: utils.subDays(utils.newDate(), 1),
+              end: utils.addDays(utils.newDate(), 1),
+            },
+          ],
+        });
+        TestUtils.Simulate.keyDown(data.nodeInput, getKey("ArrowRight"));
+        TestUtils.Simulate.keyDown(data.nodeInput, getKey("Enter"));
+        expect(data.callback.calledOnce).to.be.false;
+      });
     });
     it("should not select dates excluded from filterDate", () => {
       var data = getOnInputKeyDownStuff({
@@ -1441,6 +1549,20 @@ describe("DatePicker", () => {
     ).to.equal(weekAriaLabelPrefix);
   });
 
+  it("should pass monthAriaLabelPrefix prop to the correct child component", () => {
+    const monthAriaLabelPrefix = "My month-prefix";
+    const datePicker = mount(
+      <DatePicker
+        inline
+        showWeekNumbers
+        monthAriaLabelPrefix={monthAriaLabelPrefix}
+      />
+    );
+    expect(datePicker.find(Month).first().prop("ariaLabelPrefix")).to.equal(
+      monthAriaLabelPrefix
+    );
+  });
+
   it("should close the calendar after scrolling", () => {
     var datePicker = TestUtils.renderIntoDocument(<DatePicker closeOnScroll />);
     var dateInput = datePicker.input;
@@ -1830,5 +1952,92 @@ describe("DatePicker", () => {
       .childAt(0)
       .text();
     expect(firstDay).to.equal("Su");
+  });
+
+  describe("when update the datepicker input text while props.showTimeSelectOnly is set and dateFormat has only time related format", () => {
+    const format = "h:mm aa";
+
+    it("should keep selected date in state except new time", () => {
+      const selected = utils.newDate("2022-02-24 10:00:00");
+      let date;
+
+      const datePicker = TestUtils.renderIntoDocument(
+        <DatePicker
+          selected={selected}
+          onChange={(d) => {
+            console.log("trigger change", d);
+            date = d;
+          }}
+          showTimeSelect
+          showTimeSelectOnly
+          dateFormat={format}
+          timeFormat={format}
+        />
+      );
+
+      const input = ReactDOM.findDOMNode(datePicker.input);
+      input.value = "8:22 AM";
+      TestUtils.Simulate.change(input);
+
+      expect(utils.isSameDay(date, selected)).to.equal(true);
+      expect(utils.getHours(date)).to.equal(8);
+      expect(utils.getMinutes(date)).to.equal(22);
+    });
+  });
+
+  it("should selected month when specified minDate same month", () => {
+    const selected = utils.newDate("2023-01-09");
+    let date = null;
+    const datePicker = TestUtils.renderIntoDocument(
+      <DatePicker
+        selected={selected}
+        onChange={(d) => (date = d)}
+        dateFormat="MM/yyyy"
+        minDate={utils.newDate("2022-12-31")}
+        showMonthYearPicker
+      />
+    );
+
+    TestUtils.Simulate.change(datePicker.input, {
+      target: {
+        value: "11/2022",
+      },
+    });
+    expect(date).to.equal(null);
+
+    TestUtils.Simulate.change(datePicker.input, {
+      target: {
+        value: "12/2022",
+      },
+    });
+    expect(date.toString()).to.equal(utils.newDate("2022-12-01").toString());
+  });
+
+  it("should selected year when specified minDate same year", () => {
+    const selected = utils.newDate("2023-01-09");
+    let date = null;
+    const datePicker = TestUtils.renderIntoDocument(
+      <DatePicker
+        selected={selected}
+        onChange={(d) => (date = d)}
+        dateFormat="yyyy"
+        minDate={utils.newDate("2022-12-31")}
+        showYearPicker
+      />
+    );
+
+    TestUtils.Simulate.change(datePicker.input, {
+      target: {
+        value: "2021",
+      },
+    });
+    expect(date).to.equal(null);
+
+    TestUtils.Simulate.change(datePicker.input, {
+      target: {
+        value: "2022",
+      },
+    });
+    expect(date.toString()).to.equal(utils.newDate("2022-01-01").toString());
   });
 });
